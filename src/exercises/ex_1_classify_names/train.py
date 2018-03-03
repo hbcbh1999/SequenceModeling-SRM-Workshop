@@ -3,6 +3,7 @@ from data import create_dataset
 import resources as R
 
 from random import shuffle, sample
+from tqdm import tqdm
 
 import tensorflow as tf
 import numpy as np
@@ -49,7 +50,7 @@ def vectorize_batch(batch):
     }
 
 def train_model(model, trainset, testset, batch_size=200, max_acc=.90):
-    epochs = 100
+    epochs = 20
     iterations = len(trainset)//batch_size
 
     # fetch default session
@@ -152,5 +153,5 @@ if __name__ == '__main__':
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        train_model(model, trainset, testset, batch_size=100, max_acc=0.95)
+        train_model(model, trainset, testset, batch_size=100, max_acc=0.80)
         interact(model, validset, vocab)
