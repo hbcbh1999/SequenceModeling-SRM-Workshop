@@ -19,15 +19,15 @@ class NameGenerator():
         seqlens = tf.count_nonzero(name, axis=-1)                                        
 
         # word embedding
-        wemb = tf.get_variable(shape=[num_labels, wdim], dtype=tf.float32,               
+        lemb = tf.get_variable(shape=[num_labels, wdim], dtype=tf.float32,               
                         initializer=tf.random_uniform_initializer(-0.01, 0.01),          
                         name='word_embedding')
 
-        lemb = tf.get_variable(shape=[vocab_size, wdim], dtype=tf.float32,               
+        wemb = tf.get_variable(shape=[vocab_size, wdim], dtype=tf.float32,               
                         initializer=tf.random_uniform_initializer(-0.01, 0.01),          
                         name='label_embedding')
 
-        lemb = tf.concat([ tf.zeros([2, wdim]), lemb ], axis=0)
+        wemb = tf.concat([ tf.zeros([1, wdim]), wemb ], axis=0)
 
         Wo = tf.get_variable(shape=[hdim, vocab_size], dtype=tf.float32,               
                         initializer=tf.random_uniform_initializer(-0.01, 0.01),          
@@ -41,8 +41,8 @@ class NameGenerator():
         cell = tf.nn.rnn_cell.LSTMCell(hdim)
         zero_state = cell.zero_state(batch_size_, tf.float32)
         # initial state
-        state = tf.nn.rnn_cell.LSTMStateTuple(zero_state.c, tf.nn.embedding_lookup(wemb, label))
-        ip = tf.nn.embedding_lookup(lemb, tf.transpose(name, [1, 0])[0])
+        state = tf.nn.rnn_cell.LSTMStateTuple(zero_state.c, tf.nn.embedding_lookup(lemb, label))
+        ip = tf.nn.embedding_lookup(wemb, tf.transpose(name, [1, 0])[0])
 
         outputs = []
         llogits  = []
@@ -59,7 +59,7 @@ class NameGenerator():
                 prediction = tf.argmax(tf.nn.softmax(logits), axis=-1)
                 predictions.append(prediction)
                 # input to next step
-                ip = tf.nn.embedding_lookup(lemb, prediction)
+                ip = tf.nn.embedding_lookup(wemb, prediction)
 
         probs  = tf.nn.softmax(tf.stack(llogits))
         preds  = tf.stack(predictions)#tf.argmax(probs, axis=-1)

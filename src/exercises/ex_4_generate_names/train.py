@@ -146,8 +146,8 @@ if __name__ == '__main__':
     vocab = dataset['vocab']
 
     model = NameGenerator(
-            wdim = 300, 
-            hdim = 300,
+            wdim = 100, 
+            hdim = 100,
             vocab_size = len(vocab),
             num_labels = len(R.lang),
             max_seq_len = R.MAX_SEQ_LEN
