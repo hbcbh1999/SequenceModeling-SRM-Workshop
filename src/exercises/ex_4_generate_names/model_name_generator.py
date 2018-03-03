@@ -65,7 +65,10 @@ class NameGenerator():
         preds  = tf.stack(predictions)#tf.argmax(probs, axis=-1)
 
         # Cross Entropy
-        ce = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=tf.stack(llogits), labels=name)
+        #  mask padding
+        ce = tf.nn.sparse_softmax_cross_entropy_with_logits(
+                logits=tf.reshape(tf.stack(llogits), [batch_size_, max_seq_len, -1]),
+                labels=name) * tf.cast(name > 0, tf.float32)
         loss = tf.reduce_mean(ce)
 
         # Accuracy
@@ -73,7 +76,7 @@ class NameGenerator():
                         tf.cast(
                             tf.equal(tf.transpose(tf.cast(preds, tf.int32)), name),
                             tf.float32
-                            )
+                            ) * tf.cast(name > 0, tf.float32)
                         )
 
         self.out = { 

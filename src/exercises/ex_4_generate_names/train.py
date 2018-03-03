@@ -45,8 +45,8 @@ def pad_seq(seqs, maxlen=0, PAD=PAD, truncate=False):
 
 def vectorize_batch(batch):
     return {
-        'name'  : np.array(pad_seq([ name for name, label in batch ])),
-        'label' : np.array([ label for name, label in batch ])
+        'name'  : np.array(pad_seq([ name for label,name in batch ], maxlen=R.MAX_SEQ_LEN)),
+        'label' : np.array([ label for label,name in batch ])
     }
 
 def train_model(model, trainset, testset, batch_size=200, max_acc=.90):
@@ -58,7 +58,7 @@ def train_model(model, trainset, testset, batch_size=200, max_acc=.90):
     
     for j in range(epochs):
         loss = []
-        for i in range(iterations):
+        for i in tqdm(range(iterations)):
             # fetch next batch
             batch = vectorize_batch(trainset[i*batch_size : (i+1)*batch_size])
             #print(set(list(batch['label'])))
@@ -145,14 +145,15 @@ if __name__ == '__main__':
 
     vocab = dataset['vocab']
 
-    #model = BasicClassifier(
-    #        wdim = 150, 
-    #        hdim = 150,
-    #        vocab_size = len(vocab),
-    #        num_labels = len(R.lang)
-    #        )
+    model = NameGenerator(
+            wdim = 300, 
+            hdim = 300,
+            vocab_size = len(vocab),
+            num_labels = len(R.lang),
+            max_seq_len = R.MAX_SEQ_LEN
+            )
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        train_model(model, trainset, testset, batch_size=100, max_acc=0.80)
+        train_model(model, trainset, testset, batch_size=50, max_acc=0.80)
         interact(model, validset, vocab)
