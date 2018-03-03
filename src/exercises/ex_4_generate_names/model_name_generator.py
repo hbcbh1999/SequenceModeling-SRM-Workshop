@@ -8,56 +8,70 @@ class NameGenerator():
 
         tf.reset_default_graph()
 
-        # define placeholders
-        name   = tf.placeholder(tf.int32, [None, None], name='name')
-        labels = tf.placeholder(tf.int32, [None, ], name='label'   )
+        label = tf.placeholder(tf.int32, [None, ], 'label')
+        name  = tf.placeholder(tf.int32, [None, max_seq_len], 'name')
 
         # expose placeholders
-        self.placeholders = { 'name' : name, 'label' : labels }
+        self.placeholders = { 'label' : label, 'name' : name }
 
-        # infer dimensions of batch
-        batch_size_, seq_len_ = tf.unstack(tf.shape(name))
-
-        # actual length of sequences considering padding
-        seqlens = tf.count_nonzero(name, axis=-1)
+        batch_size_ = tf.shape(name)[0]
+        # actual length of sequences considering padding                                 
+        seqlens = tf.count_nonzero(name, axis=-1)                                        
 
         # word embedding
-        wemb = tf.get_variable(shape=[vocab_size, wdim], dtype=tf.float32,
-                        initializer=tf.random_uniform_initializer(-0.01, 0.01),
+        wemb = tf.get_variable(shape=[num_labels, wdim], dtype=tf.float32,               
+                        initializer=tf.random_uniform_initializer(-0.01, 0.01),          
                         name='word_embedding')
 
-        with tf.variable_scope('encoder') as scope:
-            _ , (fsf, fsb) = tf.nn.bidirectional_dynamic_rnn( 
-                    tf.nn.rnn_cell.LSTMCell(hdim), 
-                    tf.nn.rnn_cell.LSTMCell(hdim), 
-                    inputs=tf.nn.embedding_lookup(wemb, name), 
-                    sequence_length=seqlens, 
-                    dtype=tf.float32)
+        lemb = tf.get_variable(shape=[vocab_size, wdim], dtype=tf.float32,               
+                        initializer=tf.random_uniform_initializer(-0.01, 0.01),          
+                        name='label_embedding')
 
-        # output projection parameters
-        Wo = tf.get_variable('Wo', 
-                shape=[hdim*2, num_labels], 
-                dtype=tf.float32, 
-                initializer=tf.random_uniform_initializer(-0.01, 0.01))
+        lemb = tf.concat([ tf.zeros([2, wdim]), lemb ], axis=0)
 
-        bo = tf.get_variable('bo', 
-                shape=[num_labels,], 
-                dtype=tf.float32, 
-                initializer=tf.random_uniform_initializer(-0.01, 0.01))
+        Wo = tf.get_variable(shape=[hdim, vocab_size], dtype=tf.float32,               
+                        initializer=tf.random_uniform_initializer(-0.01, 0.01),          
+                        name='output_projection_w')
 
-        logits = tf.matmul(tf.concat([fsf.c, fsb.c], axis=-1), Wo) + bo
+        bo = tf.get_variable(shape=[vocab_size], dtype=tf.float32,               
+                        initializer=tf.random_uniform_initializer(-0.01, 0.01),          
+                        name='output_bias')
 
-        probs  = tf.nn.softmax(logits)
-        preds  = tf.argmax(probs, axis=-1)
+        #with tf.variable_scope ('decoder') as dec_scope:
+        cell = tf.nn.rnn_cell.LSTMCell(hdim)
+        zero_state = cell.zero_state(batch_size_, tf.float32)
+        # initial state
+        state = tf.nn.rnn_cell.LSTMStateTuple(zero_state.c, tf.nn.embedding_lookup(wemb, label))
+        ip = tf.nn.embedding_lookup(lemb, tf.transpose(name, [1, 0])[0])
+
+        outputs = []
+        llogits  = []
+        predictions = []
+        with tf.variable_scope('decoder') as scope:
+            for i in range(max_seq_len):
+                if i > 0:
+                    tf.get_variable_scope().reuse_variables()
+                output, state = cell(ip, state)
+                outputs.append(output)
+                # predict character; embed
+                logits = tf.matmul(output, Wo) + bo
+                llogits.append(logits)
+                prediction = tf.argmax(tf.nn.softmax(logits), axis=-1)
+                predictions.append(prediction)
+                # input to next step
+                ip = tf.nn.embedding_lookup(lemb, prediction)
+
+        probs  = tf.nn.softmax(tf.stack(llogits))
+        preds  = tf.stack(predictions)#tf.argmax(probs, axis=-1)
 
         # Cross Entropy
-        ce = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=logits, labels=labels)
+        ce = tf.nn.sparse_softmax_cross_entropy_with_logits(logits=tf.stack(llogits), labels=name)
         loss = tf.reduce_mean(ce)
 
         # Accuracy
         accuracy = tf.reduce_mean(
                         tf.cast(
-                            tf.equal(tf.cast(preds, tf.int32), labels),
+                            tf.equal(tf.transpose(tf.cast(preds, tf.int32)), name),
                             tf.float32
                             )
                         )
@@ -79,7 +93,7 @@ def rand_exec(model):
         sess.run(tf.global_variables_initializer())
         return sess.run(model.out,
                 feed_dict = {
-                    model.placeholders['name' ]  : np.random.randint(0, 10, [8, 10]),
+                    model.placeholders['name' ]  : np.random.randint(0, 10, [8, 20]),
                     model.placeholders['label']  : np.random.randint(0, 10, [8, ]  )
                     }
                 )
@@ -87,7 +101,7 @@ def rand_exec(model):
 
 if __name__ == '__main__':
 
-    model = NameGenerator(10, 10, 10, 10)
+    model = NameGenerator(10, 10, 100, 12, 20)
     out = rand_exec(model)
 
     print(out['loss'], out['accuracy'])
