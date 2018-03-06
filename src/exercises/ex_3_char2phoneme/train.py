@@ -1,5 +1,5 @@
-from sentiment_classifier import SentimentClassifier
-from data import create_dataset, index2word
+from char2phoneme_model import Char2Phoneme
+from data import load_data
 import resources as R
 
 from random import shuffle, sample
@@ -7,7 +7,6 @@ from random import shuffle, sample
 import tensorflow as tf
 import numpy as np
 
-from nltk import word_tokenize
 from tqdm import tqdm
 
 PAD = 0
@@ -47,8 +46,8 @@ def pad_seq(seqs, maxlen=0, PAD=PAD, truncate=False):
 
 def vectorize_batch(batch):
     return {
-        'review'  : np.array(pad_seq([ review for review, label in batch ])),
-        'label'   : np.array([ label for review, label in batch ])
+        'chars'    : np.array([ ch for ch,ph in batch ]),
+        'phonemes' : np.array([ ph for ch,ph in batch ])
     }
 
 def train_model(model, trainset, testset, batch_size=200, max_acc=.90):
@@ -63,11 +62,10 @@ def train_model(model, trainset, testset, batch_size=200, max_acc=.90):
         for i in tqdm(range(iterations)):
             # fetch next batch
             batch = vectorize_batch(trainset[i*batch_size : (i+1)*batch_size])
-            #print(set(list(batch['label'])))
             _, out = sess.run([ model.trainop,  model.out ],
                     feed_dict = {
-                        model.placeholders['review']  : batch['review'],
-                        model.placeholders['label' ]  : batch['label' ],
+                        model.placeholders['chars']  : batch['chars'],
+                        model.placeholders['phonemes' ]  : batch['phonemes' ],
                         }
                     )
             loss.append(out['loss'])
@@ -93,8 +91,8 @@ def evaluate(model, testset, batch_size=32):
         batch = vectorize_batch(testset[i*batch_size : (i+1)*batch_size])
         out = sess.run(model.out,
                 feed_dict = {
-                    model.placeholders['review']  : batch['review' ],
-                    model.placeholders['label' ]  : batch['label'  ]
+                    model.placeholders['chars']  : batch['chars' ],
+                    model.placeholders['phonemes' ]  : batch['phonemes'  ]
                     }
                 )
         accuracy.append(out['accuracy'])
@@ -105,8 +103,8 @@ def predict(model, batch, top_k=3):
     sess = tf.get_default_session()
     out = sess.run(model.out,
             feed_dict = {
-                model.placeholders['review']  : batch['review' ],
-                model.placeholders['label' ]  : batch['label'  ]
+                model.placeholders['chars']  : batch['chars' ],
+                model.placeholders['phonemes' ]  : batch['phonemes'  ]
                 }
             )
     preds = []
@@ -117,7 +115,6 @@ def predict(model, batch, top_k=3):
     return [ [ '{} : {}'.format(R.sentiment[i], p) for i,p in pred ]
             for pred in preds ]
 
-'''
 def interact(model, validset, lookup, n=3):
 
     print('\n<interact>\n\n')
@@ -130,13 +127,12 @@ def interact(model, validset, lookup, n=3):
             for pred in preds[i]:
                 print('\t', pred)
      
-'''
 
 if __name__ == '__main__':
 
-    dataset = create_dataset()
+    data_ctl, phonemes, chars = load_data()
 
-    samples = dataset['samples']
+    samples = [ (ch, ph) for ch,ph in zip(chars, phonemes) ]
     shuffle(samples)
     trainlen = int(len(samples)*0.80)
     testlen  = int(len(samples)*0.10)
@@ -147,16 +143,17 @@ if __name__ == '__main__':
     testset  = len_sorted(samples[trainlen:trainlen + testlen])
     validset = len_sorted(samples[trainlen + testlen : ])
 
-    vocab = dataset['vocab']
+    seqlen = data_ctl.get('limit').get('maxph')
+    idx2alpha, idx2pho = data_ctl['idx2alpha'], data_ctl['idx2pho']
 
-    model = SentimentClassifier(
-            wdim = 100, 
-            hdim = 100,
-            vocab_size = len(vocab),
-            num_labels = len(R.sentiment)
+    model = Char2Phoneme(
+            emb_dim = 150, 
+            char_vocab_size    = len(idx2alpha),
+            phoneme_vocab_size =   len(idx2pho),
+            seqlen = seqlen
             )
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        train_model(model, trainset, testset, batch_size=32, max_acc=0.80)
-        #interact(model, validset, vocab)
+        train_model(model, trainset, testset, batch_size=128, max_acc=0.70)
+        interact(model, validset, vocab)
