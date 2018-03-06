@@ -36,7 +36,7 @@ def create_dataset():
     texts, sentiments = read_file(R.DATA)
     return index_samples(texts, sentiments)
 
-def build_vocabulary(texts, max_vocab_size=R.MAX_VOCAB_SIZE):
+def build_vocabulary(texts, max_vocab_size):
     """
     TODO
 
@@ -51,7 +51,7 @@ def build_vocabulary(texts, max_vocab_size=R.MAX_VOCAB_SIZE):
     freq_dist = FreqDist(words)
     return [ R.PAD, R.UNK ] + sorted(set(words), key=lambda w : freq_dist[w], reverse=True)[:max_vocab_size]
 
-def index_samples(texts, sentiments):
+def index_samples(texts, sentiments, max_vocab_size=R.MAX_VOCAB_SIZE):
     """
     TODO
 
@@ -60,7 +60,7 @@ def index_samples(texts, sentiments):
     Returns:
 
     """
-    vocab = build_vocabulary(texts)
+    vocab = build_vocabulary(texts, max_vocab_size)
     w2i  = { w:i for i,w in enumerate(vocab) }
     return {
             'raw_samples' : [ (t,s) for t,s in zip(texts, sentiments) ],

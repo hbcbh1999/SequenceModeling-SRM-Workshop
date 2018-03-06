@@ -103,21 +103,13 @@ def evaluate(model, testset, batch_size=32):
 
 def predict(model, batch, top_k=3):
     sess = tf.get_default_session()
-    out = sess.run(model.out,
+    return sess.run(model.out,
             feed_dict = {
                 model.placeholders['review']  : batch['review' ],
                 model.placeholders['label' ]  : batch['label'  ]
                 }
-            )
-    preds = []
-    for prob in out['prob']:
-        preds.append( sorted([ (i,p) for i,p in enumerate(prob) ],
-            key=lambda x : x[1], reverse=True)[:top_k] )
+            )['pred']
 
-    return [ [ '{} : {}'.format(R.sentiment[i], p) for i,p in pred ]
-            for pred in preds ]
-
-'''
 def interact(model, validset, lookup, n=3):
 
     print('\n<interact>\n\n')
@@ -125,21 +117,23 @@ def interact(model, validset, lookup, n=3):
     while input() is not 'q':
         samples = sample(validset, n)
         preds = predict(model, vectorize_batch(samples))
-        for i, (review, label) in enumerate(samples):
-            print(' '.join([ index2word(i, lookup) for i in review ]), 'is', R.sentiment[label])
-            for pred in preds[i]:
-                print('\t', pred)
+        for pred, (review, label) in zip(preds, samples):
+            print('{} :: {}/{}'.format(
+                ' '.join([ index2word(i, lookup) for i in review ]), 
+                R.sm_sentiment[pred],
+                R.sm_sentiment[label]
+                ))
      
-'''
 
 if __name__ == '__main__':
 
+    from socialmedia import create_dataset
     dataset = create_dataset()
 
     samples = dataset['samples']
     shuffle(samples)
-    trainlen = int(len(samples)*0.80)
-    testlen  = int(len(samples)*0.10)
+    trainlen = int(len(samples)*0.70)
+    testlen  = int(len(samples)*0.20)
     validlen = testlen
     # split
     len_sorted = lambda l : sorted(l, key=lambda x : len(x[0]))
@@ -150,13 +144,13 @@ if __name__ == '__main__':
     vocab = dataset['vocab']
 
     model = SentimentClassifier(
-            wdim = 100, 
-            hdim = 100,
+            wdim = 1, 
+            hdim = 1,
             vocab_size = len(vocab),
-            num_labels = len(R.sentiment)
+            num_labels = len(R.sm_sentiment)
             )
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
-        train_model(model, trainset, testset, batch_size=32, max_acc=0.80)
-        #interact(model, validset, vocab)
+        train_model(model, trainset, testset, batch_size=8, max_acc=0.90)
+        interact(model, validset, vocab)
