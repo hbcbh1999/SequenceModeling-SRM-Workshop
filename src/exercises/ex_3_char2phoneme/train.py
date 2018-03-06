@@ -57,27 +57,34 @@ def train_model(model, trainset, testset, batch_size=200, max_acc=.90):
     # fetch default session
     sess = tf.get_default_session()
     
-    for j in range(epochs):
-        loss = []
-        for i in tqdm(range(iterations)):
-            # fetch next batch
-            batch = vectorize_batch(trainset[i*batch_size : (i+1)*batch_size])
-            _, out = sess.run([ model.trainop,  model.out ],
-                    feed_dict = {
-                        model.placeholders['chars']  : batch['chars'],
-                        model.placeholders['phonemes' ]  : batch['phonemes' ],
-                        }
-                    )
-            loss.append(out['loss'])
+    try:
+        for j in range(epochs):
+            loss = []
+            for i in tqdm(range(iterations)):
+                # fetch next batch
+                batch = vectorize_batch(trainset[i*batch_size : (i+1)*batch_size])
+                _, out = sess.run([ model.trainop,  model.out ],
+                        feed_dict = {
+                            model.placeholders['chars']  : batch['chars'],
+                            model.placeholders['phonemes' ]  : batch['phonemes' ],
+                            }
+                        )
+                loss.append(out['loss'])
 
-        print('<train> [{}]th epoch : loss : {}'.format(j, np.array(out['loss']).mean()))
-        # evaluate and calc accuracy
+            print('<train> [{}]th epoch : loss : {}'.format(j, np.array(out['loss']).mean()))
+            # evaluate and calc accuracy
+            accuracy = evaluate(model, testset)
+            print('\t<eval > accuracy : {}'.format(accuracy))
+
+            if accuracy >= max_acc :
+                print('<train> accuracy > MAX_ACC; Exit training...')
+                return
+
+    except KeyboardInterrupt:
         accuracy = evaluate(model, testset)
+        print('<train> Forced Interrupt...')
         print('\t<eval > accuracy : {}'.format(accuracy))
-
-        if accuracy >= max_acc :
-            print('<train> accuracy > MAX_ACC; Exit training...')
-            return
+        return
 
 def evaluate(model, testset, batch_size=32):
     iterations = len(testset)//batch_size
@@ -101,32 +108,29 @@ def evaluate(model, testset, batch_size=32):
 
 def predict(model, batch, top_k=3):
     sess = tf.get_default_session()
-    out = sess.run(model.out,
+    return sess.run(model.out,
             feed_dict = {
                 model.placeholders['chars']  : batch['chars' ],
                 model.placeholders['phonemes' ]  : batch['phonemes'  ]
                 }
-            )
-    preds = []
-    for prob in out['prob']:
-        preds.append( sorted([ (i,p) for i,p in enumerate(prob) ],
-            key=lambda x : x[1], reverse=True)[:top_k] )
+            )['pred']
 
-    return [ [ '{} : {}'.format(R.sentiment[i], p) for i,p in pred ]
-            for pred in preds ]
+def idx2str(indices, lookup, delimiter=''):
+    return delimiter.join([ lookup.get(i) for i in indices if i ])
 
-def interact(model, validset, lookup, n=3):
+def interact(model, validset, char_lookup, phoneme_lookup, n=3):
 
     print('\n<interact>\n\n')
     #ui = 'y'
     while input() is not 'q':
         samples = sample(validset, n)
         preds = predict(model, vectorize_batch(samples))
-        for i, (review, label) in enumerate(samples):
-            print(' '.join([ index2word(i, lookup) for i in review ]), 'is', R.sentiment[label])
-            for pred in preds[i]:
-                print('\t', pred)
-     
+        for pred, (chars, phonemes) in zip(preds, samples):
+            print('{} : {} / {}'.format(
+                idx2str(chars, char_lookup),
+                idx2str(pred, phoneme_lookup, '_'),
+                idx2str(phonemes, phoneme_lookup, '_')
+                ))
 
 if __name__ == '__main__':
 
