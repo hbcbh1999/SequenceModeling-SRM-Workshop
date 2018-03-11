@@ -16,3 +16,25 @@
 ## Challenge
 
 English to French Translation
+
+## Requirements
+
+```
+tensorflow
+numpy
+nltk # download punkt tokenizer
+tqdm
+```
+
+```python
+import nltk
+nltk.download('punkt')
+```
+
+## Execution
+
+```bash
+# cd to nth exercise folder inside exercises/
+cd exercises/ex_1_classify_names/
+python3 train.py
+```
